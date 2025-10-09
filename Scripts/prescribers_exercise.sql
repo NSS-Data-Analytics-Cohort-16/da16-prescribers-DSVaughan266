@@ -81,7 +81,7 @@ GROUP BY p.specialty_description
 HAVING SUM(rx.total_claim_count) IS NOT NULL
 ORDER BY total_claims DESC
 LIMIT 5;
---Answer: 900,845
+--Answer: Nurse Practitioners with 900,845
 
 -- LAST	c. Challenge Question: Are there any specialties that appear in the prescriber table that have no associated 
 --		prescriptions in the prescription table?
@@ -116,7 +116,7 @@ WHERE total_drug_cost IS NOT NULL
 	AND total_day_supply IS NOT NULL
 GROUP BY d.generic_name
 ORDER BY daily_cost DESC
-LIMIT 5;
+LIMIT 5;4
 --Answer: C1 Esterase Inhibitor at 3495.22/day
 
 --		Bonus: Round your cost per day column to 2 decimal places. Google ROUND to see how this works.
@@ -138,21 +138,85 @@ LIMIT 5;
 --		for drugs which have opioid_drug_flag = 'Y', says 'antibiotic' for those drugs which have antibiotic_drug_flag = 'Y', 
 --		and says 'neither' for all other drugs. Hint: You may want to use a CASE expression for this. 
 --		See https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-case/
---NEED: 
+--NEED: d.drug_name, d.opioid_drug_flag AS drug_type, d.antibiotic_drug_flag AS drug_type y="opioid" y="antibiotic" n="neither"
 
+SELECT 
+	d.drug_name,
+	CASE 
+		WHEN d.opioid_drug_flag = 'Y' THEN 'opioid'
+		WHEN d.antibiotic_drug_flag = 'Y' THEN 'antibiotic'
+		ELSE 'neither'
+	END
+FROM drug d
+GROUP BY d.drug_name, d.opioid_drug_flag, d.antibiotic_drug_flag
 
 -- 		b. Building off of the query you wrote for part a, determine whether more was spent (total_drug_cost) on opioids 
 --		or on antibiotics. Hint: Format the total costs as MONEY for easier comparision.
+--NEED: SUM(rx.total_drug_cost) 
+
+SELECT 
+	CASE 
+		WHEN d.opioid_drug_flag = 'Y' THEN 'opioid'
+		WHEN d.antibiotic_drug_flag = 'Y' THEN 'antibiotic'
+		ELSE 'neither'
+	END,
+	TO_CHAR(SUM(rx.total_drug_cost), 'FM$999,999,999,999,.00') AS total_cost
+FROM drug d
+LEFT JOIN prescription rx
+USING (drug_name)
+GROUP BY d.opioid_drug_flag, d.antibiotic_drug_flag
+ORDER BY total_cost DESC;
+--Answer: Opioids
 
 -- 5.	a. How many CBSAs are in Tennessee? Warning: The cbsa table contains information for all states, not just Tennessee.
+--NEED: COUNT(cbsa.cbsa) WHERE fips_county.state = 'TN'
+--96 in TN, 42 with city
+SELECT 
+	COUNT(cbsa.cbsa) AS cbsa_tn
+FROM cbsa
+LEFT JOIN fips_county
+USING (fipscounty)
+WHERE fips_county.state = 'TN'
+--Answer: 42
 
 -- 		b. Which cbsa has the largest combined population? Which has the smallest? Report the CBSA name and total population.
+--NEED: cbsa.cbsaname, SUM(population.population) 
+
+SELECT
+	cbsa.cbsa,
+	cbsa.cbsaname,
+	SUM(population.population) AS total_pop
+FROM cbsa
+LEFT JOIN population
+USING (fipscounty)
+WHERE population.population IS NOT NULL
+GROUP BY cbsa.cbsa, cbsa.cbsaname
+ORDER BY total_pop DESC
+--Answer: Largest: Nashville-Davidson-Murfreesboro-Franklin with 1830410
+--		  Smallest: Morristown with 116352
 
 -- 		c. What is the largest (in terms of population) county which is not included in a CBSA? 
 --		Report the county name and population.
+--NEED: fips_county.county, population.population
+
+SELECT *
+FROM fips_county
+JOIN cbsa
+USING (fipscounty)
+
+
 
 -- 6.	a. Find all rows in the prescription table where total_claims is at least 3000. 
 --		Report the drug_name and the total_claim_count.
+--NEED: d.drug_name, SUM(rx.total_claim_count) AS claim_count
+
+SELECT
+	rx.drug_name,
+	SUM(rx.total_claim_count)
+FROM prescription rx
+GROUP BY rx.drug_name
+HAVING SUM(rx.total_claim_count) >= 3000
+--Answer: 507 rows
 
 -- 		b. For each instance that you found in part a, add a column that indicates whether the drug is an opioid.
 
