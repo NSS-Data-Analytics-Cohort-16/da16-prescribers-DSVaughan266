@@ -116,8 +116,9 @@ WHERE total_drug_cost IS NOT NULL
 	AND total_day_supply IS NOT NULL
 GROUP BY d.generic_name
 ORDER BY daily_cost DESC
-LIMIT 5;4
+LIMIT 5;
 --Answer: C1 Esterase Inhibitor at 3495.22/day
+
 
 --		Bonus: Round your cost per day column to 2 decimal places. Google ROUND to see how this works.
 
@@ -132,6 +133,7 @@ WHERE total_drug_cost IS NOT NULL
 GROUP BY d.generic_name
 ORDER BY daily_cost DESC
 LIMIT 5;
+
 --Answer: C1 Esterase Inhibitor at 3495.22/day
 
 -- 4.	a. For each drug in the drug table, return the drug name and then a column named 'drug_type' which says 'opioid' 
@@ -146,9 +148,10 @@ SELECT
 		WHEN d.opioid_drug_flag = 'Y' THEN 'opioid'
 		WHEN d.antibiotic_drug_flag = 'Y' THEN 'antibiotic'
 		ELSE 'neither'
-	END
+	END AS drug_type
 FROM drug d
-GROUP BY d.drug_name, d.opioid_drug_flag, d.antibiotic_drug_flag
+
+--Answer: 3260 Rows
 
 -- 		b. Building off of the query you wrote for part a, determine whether more was spent (total_drug_cost) on opioids 
 --		or on antibiotics. Hint: Format the total costs as MONEY for easier comparision.
@@ -174,9 +177,9 @@ ORDER BY total_cost DESC;
 SELECT 
 	COUNT(cbsa.cbsa) AS cbsa_tn
 FROM cbsa
-LEFT JOIN fips_county
+JOIN fips_county
 USING (fipscounty)
-WHERE fips_county.state = 'TN'
+WHERE fips_county.state iLIKE '%TN%'
 --Answer: 42
 
 -- 		b. Which cbsa has the largest combined population? Which has the smallest? Report the CBSA name and total population.
@@ -198,13 +201,26 @@ ORDER BY total_pop DESC
 -- 		c. What is the largest (in terms of population) county which is not included in a CBSA? 
 --		Report the county name and population.
 --NEED: fips_county.county, population.population
-
 SELECT *
-FROM fips_county
-JOIN cbsa
+FROM fips_county 
+FULL JOIN cbsa
 USING (fipscounty)
+FULL JOIN population
+USING (fipscounty)
+WHERE cbsa.cbsa IS NULL;
 
+--???????? All Counties have NULL population???
 
+SELECT 
+	fc.county AS county,
+	population.population AS population
+FROM fips_county fc
+FULL JOIN cbsa
+USING (fipscounty)
+FULL JOIN population
+USING (fipscounty)
+WHERE cbsa IS NULL
+ORDER BY population DESC
 
 -- 6.	a. Find all rows in the prescription table where total_claims is at least 3000. 
 --		Report the drug_name and the total_claim_count.
@@ -220,8 +236,40 @@ HAVING SUM(rx.total_claim_count) >= 3000
 
 -- 		b. For each instance that you found in part a, add a column that indicates whether the drug is an opioid.
 
+SELECT
+	rx.drug_name,
+	SUM(rx.total_claim_count),
+	CASE 
+		WHEN d.opioid_drug_flag = 'Y' THEN 'opioid'
+		ELSE 'non_opioid'
+	END
+FROM prescription rx
+LEFT JOIN drug d
+USING (drug_name)
+GROUP BY rx.drug_name, d.opioid_drug_flag
+HAVING SUM(rx.total_claim_count) >= 3000
+--Answer: 517???
+
 -- 		c. Add another column to you answer from the previous part which gives the prescriber first and last name associated 
 --		with each row.
+
+SELECT
+	rx.drug_name,
+	SUM(rx.total_claim_count) AS total_claims,
+	p.nppes_provider_first_name || ' ' ||p.nppes_provider_last_org_name AS prescriber,
+	CASE 
+		WHEN d.opioid_drug_flag = 'Y' THEN 'opioid'
+		ELSE 'non_opioid'
+	END
+FROM prescription rx
+FULL JOIN prescriber p
+USING (npi)
+FULL JOIN drug d
+USING (drug_name)
+GROUP BY rx.drug_name, prescriber, d.opioid_drug_flag
+HAVING SUM(rx.total_claim_count) >= 3000
+ORDER BY total_claims DESC
+--Answer: 38 rows?!?!
 
 -- 7.	The goal of this exercise is to generate a full list of all pain management specialists in Nashville and the number 
 --		of claims they had for each opioid. Hint: The results from all 3 parts will have 637 rows.
@@ -230,6 +278,21 @@ HAVING SUM(rx.total_claim_count) >= 3000
 --		(specialty_description = 'Pain Management) in the city of Nashville (nppes_provider_city = 'NASHVILLE'), 
 --		where the drug is an opioid (opiod_drug_flag = 'Y'). Warning: Double-check your query before running it. 
 --		You will only need to use the prescriber and drug tables since you don't need the claims numbers yet.
+--NEED: p.npi, d.drug_name (cross join?), where p.specialty_description = 'Pain Management', p.nppes_provider_city = 'Nashville'
+--		AND d.opioid_drug_flag = 'Y'
+
+SELECT
+	p.npi,
+	p.specialty_description,
+	d.drug_name,
+	CASE 
+		WHEN d.opioid_drug_flag = 'Y' THEN 'opioid'
+		ELSE 'non_opioid'
+	END
+FROM prescriber p
+UNION ALL drug d
+WHERE p.specialty_description = 'Pain Mangement'
+	AND p.nppes_provider_city = 'Nashville'
 
 -- 		b. Next, report the number of claims per drug per prescriber. Be sure to include all combinations, whether or not 
 --		the prescriber had any claims. You should report the npi, the drug name, and the number of claims (total_claim_count).
