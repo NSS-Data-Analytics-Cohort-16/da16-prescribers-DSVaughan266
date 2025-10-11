@@ -5,14 +5,12 @@
 --		Report the npi and the total number of claims.
 --NEED: prescriber.npi, SUM(total_claim_count)
 
-SELECT
-	p.npi,
+SELECT 
+	rx.npi,
 	SUM(rx.total_claim_count) AS total_claims
-FROM prescriber p
-LEFT JOIN prescription rx
-USING (npi)
-GROUP BY p.npi
-HAVING SUM(rx.total_claim_count) IS NOT NULL
+FROM prescription rx
+GROUP BY rx.npi
+HAVING SUM(rx.totaL_claim_count) IS NOT NULL
 ORDER BY total_claims DESC
 LIMIT 5;
 --ANSWER: npi 1881634483 with 99,707 claims
@@ -22,6 +20,7 @@ LIMIT 5;
 --NEED: p.nppes_provider_first_name, p.nppes_provider_last_org_name, p.specialty_description, SUM(rx.total_claim_count)
 
 SELECT
+	p.npi,
 	p.nppes_provider_first_name AS first,
 	p.nppes_provider_last_org_name AS last,
 	p.specialty_description AS specialty,
@@ -29,7 +28,11 @@ SELECT
 FROM prescriber p
 LEFT JOIN prescription rx
 USING (npi)
-GROUP BY p.nppes_provider_first_name, p.nppes_provider_last_org_name, p.specialty_description 
+GROUP BY 
+	p.npi, 
+	p.nppes_provider_first_name, 
+	p.nppes_provider_last_org_name, 
+	p.specialty_description 
 HAVING SUM(rx.total_claim_count) IS NOT NULL
 ORDER BY total_claims DESC
 LIMIT 5;
@@ -72,16 +75,23 @@ LIMIT 5;
 --		prescriptions in the prescription table?
 --NEED: p.specialty_description, rx.drug_name
 
-SELECT DISTINCT 
+SELECT
 	p.specialty_description,
+	COUNT(p.npi) AS npi_count,
 	rx.drug_name
 FROM prescriber p
-LEFT JOIN prescription rx
-USING (npi)
+LEFT JOIN prescription rx 
+ON p.npi = rx.npi
+--WHERE rx.npi IS NULL
+WHERE rx.drug_name IS NULL
+GROUP BY specialty_description, drug_name 
+ORDER BY npi_count DESC
 
 -- LAST d. Difficult Bonus: Do not attempt until you have solved all other problems! For each specialty, 
 --		report the percentage of total claims by that specialty which are for opioids. 
 --		Which specialties have a high percentage of opioids?
+
+
 
 -- 3.	a. Which drug (generic_name) had the highest total drug cost?
 --NEED: d.generic_name, SUM(rx.total_drug_cost)
@@ -128,7 +138,6 @@ WHERE total_drug_cost IS NOT NULL
 GROUP BY d.generic_name
 ORDER BY daily_cost DESC
 LIMIT 5;
-
 --Answer: C1 Esterase Inhibitor at 3495.22/day
 
 -- 4.	a. For each drug in the drug table, return the drug name and then a column named 'drug_type' which says 'opioid' 
@@ -144,7 +153,7 @@ SELECT
 		WHEN d.antibiotic_drug_flag = 'Y' THEN 'antibiotic'
 		ELSE 'neither'
 	END AS drug_type
-FROM drug d
+FROM drug d;
 --Answer: 3425 Rows
 
 -- 		b. Building off of the query you wrote for part a, determine whether more was spent (total_drug_cost) on opioids 
@@ -157,7 +166,8 @@ SELECT
 		WHEN d.antibiotic_drug_flag = 'Y' THEN 'antibiotic'
 		ELSE 'neither'
 	END AS drug_type,
-	TO_CHAR(SUM(rx.total_drug_cost), 'FM$999,999,999,999,.00') AS total_cost
+	CAST(SUM(rx.total_drug_cost) AS MONEY) AS total_cost
+	--TO_CHAR(SUM(rx.total_drug_cost), 'FM$999,999,999,999.00') AS total_cost
 FROM drug d
 LEFT JOIN prescription rx
 USING (drug_name)
@@ -166,6 +176,8 @@ WHERE opioid_drug_flag = 'Y'
 GROUP BY d.opioid_drug_flag, d.antibiotic_drug_flag
 ORDER BY total_cost DESC;
 --Answer: Opioids
+
+
 
 -- 5.	a. How many CBSAs are in Tennessee? Warning: The cbsa table contains information for all states, not just Tennessee.
 --NEED: COUNT(cbsa.cbsa) WHERE fips_county.state = 'TN'
